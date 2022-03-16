@@ -24,7 +24,7 @@ from .utils.encoding import bytes_to_str, str_to_bytes, bytes_t
 
 __all__ = ('pickle', 'loads', 'dumps', 'register', 'unregister')
 SKIP_DECODE = frozenset(['binary', 'ascii-8bit'])
-TRUSTED_CONTENT = frozenset(['application/data', 'application/text'])
+TRUSTED_CONTENT = frozenset(['application/data', 'application/text', 'application/x-yaml'])
 
 if sys.platform.startswith('java'):  # pragma: no cover
 
@@ -315,9 +315,17 @@ def register_yaml():
     """
     try:
         import yaml
-        registry.register('yaml', yaml.safe_dump, yaml.safe_load,
-                          content_type='application/x-yaml',
-                          content_encoding='utf-8')
+        def yaml_load(data, *args, **kwargs):
+            if isinstance(data, memoryview):
+                try:
+                    data = data.tobytes()
+                except Exception as ex:
+                    pass
+            return yaml.safe_load(data, *args, **kwargs)
+        registry.register('yaml', yaml.safe_dump, yaml_load,
+                                              content_type='application/x-yaml',
+                                              content_encoding='utf-8')
+
     except ImportError:
 
         def not_available(*args, **kwargs):
@@ -451,6 +459,7 @@ def disable_insecure_serializers(allowed=NOTSET):
 
 # Insecure serializers are disabled by default since v3.0
 disable_insecure_serializers()
+registry.enable('yaml')
 
 # Load entrypoints from installed extensions
 for ep, args in entrypoints('kombu.serializers'):  # pragma: no cover
